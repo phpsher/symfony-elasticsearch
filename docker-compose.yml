@@ -1,0 +1,68 @@
+services:
+    app:
+        container_name: elastic-app
+        build:
+            dockerfile: docker/php/Dockerfile
+        restart: unless-stopped
+        working_dir: /var/www/
+        volumes:
+            - ./:/var/www
+        depends_on:
+            - db
+        networks:
+            - app-net
+
+    nginx:
+        image: nginx:alpine
+        restart: unless-stopped
+        ports:
+            - "8000:80"
+        volumes:
+            - ./:/var/www
+            - ./docker/nginx/:/etc/nginx/conf.d/
+        networks:
+            - app-net
+
+    db:
+        image: postgres:15-alpine
+        restart: unless-stopped
+        environment:
+            POSTGRES_DB: ${DB_DATABASE:-symfony}
+            POSTGRES_USER: ${DB_USERNAME:-symfony}
+            POSTGRES_PASSWORD: ${DB_PASSWORD:-symfony}
+        volumes:
+            - pg_data:/var/lib/postgresql/data
+        ports:
+            - "5432:5432"
+        networks:
+            - app-net
+
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:9.4.6
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+            - ES_JAVA_OPTS=-Xms512m -Xmx512m
+        ports:
+            - "9200:9200"
+        volumes:
+            - es_data:/usr/share/elasticsearch/data
+        networks:
+            - app-net
+
+    kibana:
+        image: docker.elastic.co/kibana/kibana:8.15.0
+        environment:
+            - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+        ports:
+            - "5601:5601"
+        depends_on:
+            - elasticsearch
+
+volumes:
+    es_data:
+    pg_data:
+
+networks:
+    app-net:
+        driver: bridge
